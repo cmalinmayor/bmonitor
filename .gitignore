@@ -1,0 +1,8 @@
+*.egg-info
+*.sw[pmno]
+build
+dist
+*.pyc
+*.lock
+__pycache__
+*.log
