@@ -1,6 +1,7 @@
 import logging
 import subprocess
 from typing import Dict, Tuple, List
+import re
 
 logger = logging.getLogger(__name__)
 # header strings
@@ -11,7 +12,9 @@ DONE = 'DONE'
 EXIT = 'EXIT'
 STAT = 'STAT'
 
-# TODO: Add bwait, bresubmit functions
+bsub_stdout_regex = re.compile("Job <(\d+)> is submitted*")
+
+# TODO: Add bresubmit function
 
 
 def get_last_jobid(array: bool = False) -> str:
@@ -114,3 +117,29 @@ def get_array_jobs_status(jobid: str) -> Dict[str, List[int]]:
         stat = job_info[header.index(STAT)]
         status[stat].append(i)
     return status
+
+
+def wait_for_job_end(jobid, timeout=None):
+    ''' Calls bwait to return when job ends. Timeout (in seconds)
+    is passed to subprocess.run, which throws a subprocess.TimeoutExpired
+    exception if the bwait subprocess fails to return before the timeout.'''
+    bwait = "bwait -w 'ended(%s)'" % jobid
+    output = subprocess.check_call(bwait, shell=True, timeout=timeout)
+    return output
+
+
+def retry_failed(jobid, array=True):
+    ''' Calls brequeue on exited jobs THIS DOESNT WORK'''
+    array_length = get_array_length(jobid)
+    retry_exited_cmd = 'brequeue -J "retry_%s[1-%d]" -e %s'\
+                       % (jobid, array_length, jobid)
+    output = subprocess.run(
+            retry_exited_cmd,
+            shell=True,
+            stdout=subprocess.PIPE,
+            encoding='UTF-8')
+    match = bsub_stdout_regex.match(output.stdout)
+    if not match:
+        logger.warn("Could not get jobid")
+    jobid = match.group(1)
+    return jobid
